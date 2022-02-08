@@ -13,33 +13,6 @@ class TemplateMatching:
         self.referenceImage = self.getReferenceImage()
         self.referenceImageHeight, self.referenceImageWidth = self.referenceImage.shape
 
-    def calculate_cost(self, block_matrix):
-        return np.sum((self.referenceImage / 255.0 - block_matrix / 255.0) ** 2)
-
-    def is_valid_location(self, i, j, frame_matrix):
-        frame_matrix_height, frame_matrix_width = frame_matrix.shape
-        return i >= 0 and i + self.referenceImageHeight < frame_matrix_height and j >= 0 and j + self.referenceImageWidth < frame_matrix_width
-
-    def generate_video(self, vidcap, frame_matrices, method):
-        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
-        fps = vidcap.get(cv2.CAP_PROP_FPS)
-        height, width, layers = frame_matrices[0].shape
-        outputV = cv2.VideoWriter(
-            method + ' - output.mov', fourcc, fps, (width, height))
-        for frame in frame_matrices:
-            outputV.write(frame)
-        outputV.release()
-
-    def draw_frame_rectangle(self, best_location_top_left, frame_matrix):
-        best_location_bottom_right = best_location_top_left[0] + \
-            self.referenceImageWidth, best_location_top_left[1] + \
-            self.referenceImageHeight
-        color = (0, 0, 255)
-        thickness = 2
-        cv2.rectangle(frame_matrix, best_location_top_left,
-                      best_location_bottom_right, color, thickness)
-        return frame_matrix
-
     def exhaustiveSearchUtil(self, grayscale_frame_matrix, previous_best_location, p):
         previous_best_height, previous_best_width = previous_best_location
         minimum_value = np.inf
@@ -49,12 +22,13 @@ class TemplateMatching:
 
         for i in range(previous_best_height - p, previous_best_height + p + 1):
             for j in range(previous_best_width - p, previous_best_width + p + 1):
-                if not self.is_valid_location(i, j, grayscale_frame_matrix):
+                isValidLocation = i >= 0 and i + self.referenceImageHeight < grayscale_frame_matrix.shape[0] and j >= 0 and j + self.referenceImageWidth < grayscale_frame_matrix.shape[1]
+                if not isValidLocation:
                     continue
                 search_counter += 1
                 block_matrix = grayscale_frame_matrix[i: i +
                                                       self.referenceImageHeight, j: j + self.referenceImageWidth]
-                value = self.calculate_cost(block_matrix)
+                value = np.sum((self.referenceImage / 255.0 - block_matrix / 255.0) ** 2)
                 if value < minimum_value:
                     minimum_value = value
                     new_best_location = i, j
@@ -76,7 +50,7 @@ class TemplateMatching:
                 search_counter += 1
                 block_matrix = firstGrayScaleFrame[i: i +
                                                    self.referenceImageHeight, j: j + self.referenceImageWidth]
-                value = self.calculate_cost(block_matrix)
+                value = np.sum((self.referenceImage / 255.0 - block_matrix / 255.0) ** 2)
                 if value < minimum_value:
                     minimum_value = value
                     best_location = i, j
@@ -87,12 +61,27 @@ class TemplateMatching:
                 self.grayscaleFrames[i], best_location, p)
 
             best_location_top_left = best_location_top_left[::-1]
-            frameMatrices[i] = self.draw_frame_rectangle(
-                best_location_top_left, frameMatrices[i])
+            
+            best_location_bottom_right = best_location_top_left[0] + \
+            self.referenceImageWidth, best_location_top_left[1] + \
+            self.referenceImageHeight
+            color = (0, 0, 255)
+            thickness = 2
+            cv2.rectangle(frameMatrices[i], best_location_top_left,
+                        best_location_bottom_right, color, thickness)
+            
             best_location = best_location_top_left[::-1]
             total_search_counter += search_counter
 
-        self.generate_video(self.videocapture, frameMatrices, "exhaustive")
+        # generating video
+        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+        fps = self.videocapture.get(cv2.CAP_PROP_FPS)
+        height, width, layers = frameMatrices[0].shape
+        outputV = cv2.VideoWriter(
+            'exhaustive - output.mov', fourcc, fps, (width, height))
+        for frame in frameMatrices:
+            outputV.write(frame)
+        outputV.release()
 
         return total_search_counter
 
@@ -110,12 +99,13 @@ class TemplateMatching:
         while d > 1:
             for i in range(previous_best_height - d, previous_best_height + d + 1, d):
                 for j in range(previous_best_width - d, previous_best_width + d + 1, d):
-                    if not self.is_valid_location(i, j, grayscale_frame_matrix):
+                    isValidLocation = i >= 0 and i + self.referenceImageHeight < grayscale_frame_matrix.shape[0] and j >= 0 and j + self.referenceImageWidth < grayscale_frame_matrix.shape[1]
+                    if not isValidLocation:
                         continue
                     search_counter += 1
                     block_matrix = grayscale_frame_matrix[i: i +
                                                           self.referenceImageHeight, j: j + self.referenceImageWidth]
-                    value = self.calculate_cost(block_matrix)
+                    value = np.sum((self.referenceImage / 255.0 - block_matrix / 255.0) ** 2)
                     if value < minimum_value:
                         minimum_value = value
                         new_best_location = i, j
@@ -140,7 +130,7 @@ class TemplateMatching:
                 search_counter += 1
                 block_matrix = firstGrayScaleFrame[i: i +
                                                    self.referenceImageHeight, j: j + self.referenceImageWidth]
-                value = self.calculate_cost(block_matrix)
+                value = np.sum((self.referenceImage / 255.0 - block_matrix / 255.0) ** 2)
                 if value < minimum_value:
                     minimum_value = value
                     best_location = i, j
@@ -151,12 +141,27 @@ class TemplateMatching:
                 self.grayscaleFrames[i], best_location, p)
 
             best_location_top_left = best_location_top_left[::-1]
-            frameMatrices[i] = self.draw_frame_rectangle(
-                best_location_top_left, frameMatrices[i])
+            
+            best_location_bottom_right = best_location_top_left[0] + \
+                self.referenceImageWidth, best_location_top_left[1] + \
+                self.referenceImageHeight
+            color = (0, 0, 255)
+            thickness = 2
+            cv2.rectangle(frameMatrices[i], best_location_top_left,
+                          best_location_bottom_right, color, thickness)
+            
             best_location = best_location_top_left[::-1]
             total_search_counter += search_counter
 
-        self.generate_video(self.videocapture, frameMatrices, "logarithmic")
+        # generating video
+        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+        fps = self.videocapture.get(cv2.CAP_PROP_FPS)
+        height, width, layers = frameMatrices[0].shape
+        outputV = cv2.VideoWriter(
+            'logarithmic - output.mov', fourcc, fps, (width, height))
+        for frame in frameMatrices:
+            outputV.write(frame)
+        outputV.release()
 
         return total_search_counter
 
@@ -224,7 +229,7 @@ class TemplateMatching:
                 search_counter += 1
                 block_matrix = firstGrayScaleFrame[i: i +
                                                    self.referenceImageHeight, j: j + self.referenceImageWidth]
-                value = self.calculate_cost(block_matrix)
+                value = np.sum((self.referenceImage / 255.0 - block_matrix / 255.0) ** 2)
                 if value < minimum_value:
                     minimum_value = value
                     best_location = i, j
@@ -235,12 +240,27 @@ class TemplateMatching:
                 self.grayscaleFrames[i], best_location, p)
 
             best_location_top_left = best_location_top_left[::-1]
-            frameMatrices[i] = self.draw_frame_rectangle(
-                best_location_top_left, frameMatrices[i])
+            
+            best_location_bottom_right = best_location_top_left[0] + \
+                self.referenceImageWidth, best_location_top_left[1] + \
+                self.referenceImageHeight
+            color = (0, 0, 255)
+            thickness = 2
+            cv2.rectangle(frameMatrices[i], best_location_top_left,
+                          best_location_bottom_right, color, thickness)
+            
             best_location = best_location_top_left[::-1]
             total_search_counter += search_counter
 
-        self.generate_video(self.videocapture, frameMatrices, "hierarchical")
+        # genearating video
+        fourcc = cv2.VideoWriter_fourcc(*'DIVX')
+        fps = self.videocapture.get(cv2.CAP_PROP_FPS)
+        height, width, layers = frameMatrices[0].shape
+        outputV = cv2.VideoWriter(
+            'hierarchical - output.mov', fourcc, fps, (width, height))
+        for frame in frameMatrices:
+            outputV.write(frame)
+        outputV.release()
 
         print(total_search_counter)
         return total_search_counter
@@ -260,19 +280,19 @@ class TemplateMatching:
 
     def runOffline(self):
         exhaustive_list = []        
-        for p in range(5, 8):
+        for p in range(5, 11):
           counter = self.exhaustiveSearch(p)
           exhaustive_list.append((p, counter / len(self.originalFrames)))
         exhaustive_array = np.asarray(exhaustive_list)
         
         logarithmic_list = []
-        for p in range(5, 8):
+        for p in range(5, 11):
           counter = self.logarithmicSearch(p)
           logarithmic_list.append((p, counter / len(self.originalFrames)))
         logarithmicArray = np.asarray(logarithmic_list)
         
         hierarchical_list = []
-        for p in range(5, 8):
+        for p in range(5, 11):
           counter = self.hierarchicalSearch(p)
           hierarchical_list.append((p, counter / len(self.originalFrames)))
         hierarchicalArray = np.asarray(hierarchical_list)
@@ -291,8 +311,7 @@ class TemplateMatching:
             if not success:
                 break
             original_frame_matrices.append(image)
-            grayscale_frame_matrices.append(cv2.cvtColor(
-                image, cv2.COLOR_BGR2GRAY))  # converted to grayscale
+            grayscale_frame_matrices.append(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY))
         return vidcap, np.asarray(original_frame_matrices), np.asarray(grayscale_frame_matrices)
 
 
